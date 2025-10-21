@@ -32,5 +32,7 @@ int main()
         {
             cout << input.substr(4) << "\n";
         }
+        else if (input.size() == 0) { ; }
+        else {std::cout << "command not found!\n";}
     }
 }
