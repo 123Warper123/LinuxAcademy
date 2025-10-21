@@ -27,5 +27,10 @@ int main()
         }
 
         history_file << input << "\n";
+
+        if (input.substr(0, 4) == "echo")
+        {
+            cout << input.substr(4) << "\n";
+        }
     }
 }
