@@ -1,45 +1,33 @@
-name: Tests
+name: CI from Subdirectory
 
-on:
-  push:
-    branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
+on: [push, pull_request]
 
 jobs:
-  build-and-test:
-    runs-on: ubuntu-22.04
+  test:
+    runs-on: ubuntu-latest
     
     steps:
+    - uses: actions/checkout@v4
+    
     - name: Change to subdirectory
-      working-directory: ./kubsh
+      working-directory: ./subdirectory  # ← МЕНЯЕМ КАТАЛОГ!
     
-    - name: Checkout code
-      uses: actions/checkout@v4
+    - name: List files
+      run: pwd && ls -la  # Проверяем где мы
     
-    - name: Set up Docker
-      uses: docker/setup-buildx-action@v3
+    - name: Install dependencies
+      working-directory: ./subdirectory
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y g++ make python3 python3-pip
+        pip3 install pytest
     
-    - name: Build Docker image
-      run: docker build -t kubsh-test .
+    - name: Build
+      working-directory: ./subdirectory
+      run: make
     
     - name: Run tests
+      working-directory: ./subdirectory
       run: |
-        docker run --rm \
-          -v /tmp/test-results:/tmp/test-results \
-          kubsh-test \
-          bash -c "
-            # Разрешаем запись в /etc/passwd для тестов
-            chmod a+rw /etc/passwd
-            # Запускаем тесты с выводом в файл
-            pytest -v --junitxml=/tmp/test-results/results.xml || true
-            # Выводим результаты
-            cat /tmp/test-results/results.xml
-          "
-    
-    - name: Test Results
-      uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: test-results
-        path: /tmp/test-results/
+        sudo chmod a+rw /etc/passwd
+        pytest tests/ -v
