@@ -18,6 +18,7 @@ jobs:
       # Шаг 2: Сборка Docker-образа
       - name: Build Docker image
         run: |
+          cd kubsh
           docker build -t kubsh-test .
       
       # Шаг 3: Запуск контейнера и выполнение тестов
