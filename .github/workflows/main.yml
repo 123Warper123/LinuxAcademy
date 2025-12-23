@@ -1,33 +1,91 @@
-name: CI from Subdirectory
+name: CI with Caching
 
-on: [push, pull_request]
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+env:
+  PROJECT_DIR: "./kubsh"  # Ваша поддиректория
+  CACHE_KEY: ${{ runner.os }}-${{ hashFiles('**/Makefile', '**/requirements.txt') }}
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        path: ./repo  # Чистый checkout
     
-    - name: Change to subdirectory
-      working-directory: ./subdirectory  # ← МЕНЯЕМ КАТАЛОГ!
+    - name: Cache apt packages
+      uses: actions/cache@v4
+      with:
+        path: /var/cache/apt
+        key: ${{ runner.os }}-apt-${{ hashFiles('**/.github/workflows/*.yml') }}
+        restore-keys: |
+          ${{ runner.os }}-apt-
     
-    - name: List files
-      run: pwd && ls -la  # Проверяем где мы
+    - name: Cache pip packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
     
-    - name: Install dependencies
-      working-directory: ./subdirectory
+    - name: Cache build artifacts
+      uses: actions/cache@v4
+      with:
+        path: |
+          ${{ env.PROJECT_DIR }}/kubsh  # Исполняемый файл
+          ${{ env.PROJECT_DIR }}/**/*.o  # Объектные файлы
+        key: ${{ env.CACHE_KEY }}-build
+        restore-keys: |
+          ${{ env.CACHE_KEY }}-build
+    
+    - name: Install system dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y g++ make python3 python3-pip
-        pip3 install pytest
+        sudo apt-get install -y \
+          g++ \
+          make \
+          python3 \
+          python3-pip \
+          python3-venv
     
-    - name: Build
-      working-directory: ./subdirectory
-      run: make
+    - name: Setup Python environment
+      working-directory: ${{ env.PROJECT_DIR }}
+      run: |
+        python3 -m venv venv
+        . venv/bin/activate
+        if [ -f requirements.txt ]; then
+          pip install -r requirements.txt
+        fi
+        pip install pytest
     
-    - name: Run tests
-      working-directory: ./subdirectory
+    - name: Build project
+      working-directory: ${{ env.PROJECT_DIR }}
+      run: |
+        make clean  # Очищаем для чистоты сборки
+        make
+    
+    - name: Setup test environment
       run: |
         sudo chmod a+rw /etc/passwd
-        pytest tests/ -v
+        sudo mkdir -p /opt/tests/users
+    
+    - name: Run tests
+      working-directory: ${{ env.PROJECT_DIR }}
+      run: |
+        . venv/bin/activate
+        pytest tests/ -v --junitxml=test-results.xml
+    
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results
+        path: ${{ env.PROJECT_DIR }}/test-results.xml
