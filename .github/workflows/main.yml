@@ -1,49 +1,26 @@
-name: Docker CI/CD Pipeline
+name: Docker CI
 
 on:
   push:
-    branches: [ main, master, develop ]
+    branches: [ main ]
   pull_request:
-    branches: [ main, master ]
+    branches: [ main ]
 
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
-    
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Build Docker image
-      run: |
-        docker build \
-          --tag kubsh-test:${{ github.sha }} \
-          --tag kubsh-test:latest \
-          .
-    
-    - name: Run tests in container
-      run: |
-        docker run --rm \
-          --name kubsh-tests \
-          kubsh-test:latest
-    
-    - name: Save test results
-      if: always()
-      run: |
-        docker run --rm \
-          --name kubsh-results \
-          -v $(pwd)/test-results:/results \
-          kubsh-test:latest \
-          bash -c "
-            cd /workspace
-            pytest tests/ -v --junitxml=/results/test-results.xml || true
-          "
-    
-    - name: Upload test artifacts
-      uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: test-results
-        path: |
-          test-results/
-        retention-days: 7
+      # Шаг 1: Получить код из репозитория
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Шаг 2: Сборка Docker-образа
+      - name: Build Docker image
+        run: |
+          docker build -t kubsh-test .
+      
+      # Шаг 3: Запуск контейнера и выполнение тестов
+      - name: Run tests in container
+        run: |
+          docker run --rm kubsh-test
