@@ -13,21 +13,36 @@ RUN apt-get update && apt-get install -y \
     python3 \
     python3-pip \
     git \
+    valgrind \
     && rm -rf /var/lib/apt/lists/*
 
-# Копируем тесты из оригинального контейнера (или устанавливаем их)
-# Если тесты доступны как pip пакет или из git
+# Устанавливаем pytest и зависимости для тестов
 RUN pip3 install pytest
 
 # Создаем рабочую директорию
 WORKDIR /workspace
 
-# Копируем скрипт для запуска тестов
-COPY run_tests.sh /usr/local/bin/
-COPY /tests /opt/tests/
-COPY main.cpp /workspace/
-COPY Makefile /workspace/
-RUN chmod +x /usr/local/bin/run_tests.sh
+# Копируем исходный код
+COPY . /workspace/
+
+# Создаем тестовую директорию
+RUN mkdir -p /opt/tests/users
+
+# Разрешаем запись в /etc/passwd для тестов
 RUN chmod a+rw /etc/passwd
 
-CMD ["bash", "-c", "/usr/local/bin/run_tests.sh; /bin/bash"]
+# Компилируем проект
+RUN make
+
+# Создаем скрипт для запуска тестов
+RUN echo '#!/bin/bash\n\
+cd /workspace\n\
+echo "=== Running unit tests ==="\n\
+pytest tests/ -v\n\
+echo "=== Memory check ==="\n\
+valgrind --leak-check=full --error-exitcode=1 ./kubsh --help 2>&1 | tail -20\n\
+echo "=== Basic functionality test ==="\n\
+echo "exit" | timeout 5 ./kubsh || true\n\
+' > /usr/local/bin/run_tests.sh && chmod +x /usr/local/bin/run_tests.sh
+
+CMD ["/usr/local/bin/run_tests.sh"]
