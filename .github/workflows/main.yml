@@ -11,6 +11,9 @@ jobs:
     runs-on: ubuntu-22.04
     
     steps:
+    - name: Change to subdirectory
+      working-directory: ./kubsh
+    
     - name: Checkout code
       uses: actions/checkout@v4
     
